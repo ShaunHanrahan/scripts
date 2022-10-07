@@ -9,7 +9,7 @@
     Version:       1.0
     Author:        Bryan Jones
     Creation Date: October 1, 2022
-    Revision Date: October 7,, 2022
+    Revision Date: October 7, 2022
 .EXAMPLE
     powershell.exe -path "<full path to file>.ps1"
 #>
