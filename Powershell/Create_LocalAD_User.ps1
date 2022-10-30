@@ -9,25 +9,36 @@
     Version:       1.0
     Author:        Bryan Jones
     Creation Date: October 1, 2022
-    Revision Date: October 7, 2022
+    Revision Date: October 24, 2022
 .EXAMPLE
     powershell.exe -path "<full path to file>.ps1"
 #>
 
 # The file containing the CSV
-$inputFile = "\\path\to\Watch\Employees.csv"
+$inputFile = "\\path\to\csvfolder\*.csv"
 
 # Location for outputted log file
-$Logfile = "\\path\to\logs\UserCreation.logs"
+$Logfile = "\\path\to\logfolder\UserCreationLogs.txt"
 
 $CreateUserName = $null
 $CreatePass      = $null
 
+# Exchange Server to use
+$exchangeServer = "exchangeServerName"
+
 # Default email to be used
-$DefaultEmail = "email@email.com"
+$DefaultEmail = "Default@email.com"
+
+# Set the site location for the user provided from the .CSV
+$SiteLocation = $null
+
+# Set timer to give Exchange Server time to find the AD Object
+$sleepTimer = 3
 
 # Set account limit
 $SAMLengthLimit = 15
+
+# Localize our variables
 $EmailToUse = $null
 $script:supervisorEmail = $null
 $script:TokenResponse =$null
@@ -52,30 +63,11 @@ function Get-RandomPassword {
     param (
         [Parameter(Mandatory)]
         [int] $length,
-        [int] $amountOfNonAlphanumeric = 1
+        [int] $amountOfNonAlphanumeric
     )
     Add-Type -AssemblyName 'System.Web'
-    return [System.Web.Security.Membership]::GeneratePassword($length, $amountOfNonAlphanumeric)
+    return [System.Web.Security.Membership]::GeneratePassword($length, $amountOfNonAlphanumeric) 
 }
-
-<#
-function showFailure {
-    cls
-    Write-Host ------------------------------------------------------------
-    Write-Host                   User Creation =  -NoNewline
-    Write-Host " " Failure -ForegroundColor Red 
-    Write-Host ------------------------------------------------------------
-}
-
-function showSuccess {
-    cls
-    Write-Host ------------------------------------------------------------
-    Write-Host                   User Creation =  -NoNewline
-    Write-Host " " Success -ForegroundColor Green 
-    Write-Host ------------------------------------------------------------
-}
-#>
-
 function find-supervisor {
 
     # Get info from the supervisor
@@ -87,13 +79,13 @@ function find-supervisor {
     return $script:supervisorEmail
  }
 
-# You don't have to call this function
+
 function Send-ToEmail {
 
     # Application (client) ID, tenant Name and secret
-    $clientID = "fakeID3482748"
+    $clientID = "clientID-string-here"
     $tenantName = "tenantName.onmicrosoft.com"
-    $clientSecret = "89347329gr87fsdf73"
+    $clientSecret = "client-secret-here"
     $resource = "https://graph.microsoft.com/"
     $apiUrl = "https://graph.microsoft.com/v1.0/users/user@domain.gov/sendMail"
     
@@ -177,11 +169,25 @@ function Send-ToEmail {
 }
 
 # Optionally create a mailbox for the user
-function Enable-O365MailBox {
+function Connect-ToExchange {
 
-    # Get-Credentials for exchange admin
-    $MailBoxAddr = "exchange.mail.onmicrosoft.com"
-    Enable-RemoteMailbox $CreateUserName -RemoteRoutingAddress "$CreateUserName@$MailBoxAddr"
+    # Connect to Exchange Management Shell
+    $UserCredential = Get-Credential
+    $Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri "http://$exchangeServer/PowerShell/" -Authentication Kerberos -Credential $UserCredential
+    Import-PSSession -Session $Session -CommandName Enable-RemoteMailbox -AllowClobber
+
+}
+
+function Enable-UsersMailbox {
+
+    # Get-Credentials for exVchange admin
+    $MailBoxAddr = "tenantName.mail.onmicrosoft.com"
+    try {
+        Enable-RemoteMailbox $CreateUserName -RemoteRoutingAddress "$CreateUserName@$MailBoxAddr" | Out-Null
+    }
+    catch {
+        {1: WriteLog "Enable RemoteMailbox error." }
+    }
 }
 
 # Set logging parameteres
@@ -195,17 +201,21 @@ function WriteLog {
 # Load the AD modules 
 #Load-Modules
 
+# Connect to Exchange Management Shell
+Connect-ToExchange
+
 # Began the user creation, this can also create multiple users at a time
 if (Test-Path -Path "$inputFile") {
 
     Import-Csv -Path $inputFile | ForEach-Object {
         
         # Call the function to create a password with acceptable parameters
-        $CreatePass = Get-RandomPassword -length 8 -amountOfNonAlphanumeric 2
+        $CreatePass = Get-RandomPassword -length 10 -amountOfNonAlphanumeric 2 
         $securedPass = ConvertTo-SecureString -String $CreatePass -AsPlainText -Force     
 
         # Create the username (Format First Name (First Letter) + Last Name)
-        $CreateUserName = '{0}{1}' -f $_.FirstName.Substring(0,1),$_.LastName
+        # Also set everything to lowercase
+        $CreateUserName = '{0}{1}' -f $_.FirstName.Substring(0,1).ToLower(),$_.LastName.ToLower()
 
         # Ensure the SamAccountName isn't to long
         If ( $CreateUserName.Length -gt $SAMLengthLimit ) {
@@ -219,21 +229,24 @@ if (Test-Path -Path "$inputFile") {
         $displayName = $_.FirstName + " " + $_.LastName
 
         # Correct the UPN 
-        $domain = '@domain.gov'
+        $domain = '@Domain.gov'
 
         # All Parameters to create the SAM Account
         $NewUserParameters = @{
-            GivenName          = $_.FirstName
-            Surname            = $_.LastName
-            Name               = $CreateUserName
-            AccountPassword    = $securedPass
-            DisplayName        = $displayName
-            Title              = $_.Title
-            Manager            = $_.Manager
-            Description        = $_.Title 
-            Department         = $_.Department
-            UserPrincipalName  = $CreateUserName+$domain
-            Enabled            = $True
+            GivenName             = $_.FirstName
+            Surname               = $_.LastName
+            Name                  = $displayName
+            SamAccountName        = $CreateUserName
+            UserPrincipalName     = $CreateUserName+$domain
+            DisplayName           = $displayName
+            #Path                  = $SiteLocation
+            AccountPassword       = $securedPass
+            Title                 = $_.Title
+            Manager               = $_.Manager
+            Description           = $_.Title 
+            Department            = $_.Department
+            Enabled               = $True
+            ChangePasswordAtLogon = $True
         }
         
 
@@ -253,15 +266,27 @@ if (Test-Path -Path "$inputFile") {
             WriteLog "User created: $UserDistinguishedName.Name" 
             WriteLog "Organizational Unit: $UserDistinguishedName.DistinguishedName" 
 
-            # Create the user's o365 mailbox / Maybe invoke-command?
-            #Enable-O365MailBox
+            # Create the user's o365 mailbox
+            do
+                {
+                    $errCountBefore = $Error.Count
+                    try { Enable-UsersMailbox }
+                    catch
+                    {
+                        #Write-Output "Cant connect the group to the main group, looping in $sleepTimer.."
+                        Write-Error -ErrorAction SilentlyContinue "An error occurred in the try loop: $_"
+                        Start-Sleep -Seconds $sleepTimer
+                    }
+                    if ($errCountBefore -eq $Error.Count) { $stopLoop = $true }
+                }
+                While ($stopLoop -eq $false)
             
             # Return the value and assign to a var
             $GrabEmail = find-supervisor
             Send-ToEmail
 
+            # Add user to corresponding group depending 
             #Add-AdGroupMember -Identity 'Accounting' -Members $userName
-            Remove-Item -Path "\\path\to\Watch\Employees.csv"
 
         }else {
 
@@ -280,4 +305,17 @@ if (Test-Path -Path "$inputFile") {
         } 
     }
 
+}else{
+    WriteLog "No file was found!"
 }
+
+# Remove the PSSession
+try {
+    Remove-PSSession $Session
+}
+catch {
+    {1: Write-Host "PSSession removed."}
+}
+
+# Remove .csv file
+Remove-Item -Path "\\path\to\csvfolder\Employees.csv"
