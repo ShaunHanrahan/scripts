@@ -14,7 +14,9 @@
     powershell.exe -path "<full path to file>.ps1"
 #>
 
-$msolUsers = Get-MsolUser -EnabledFilter EnabledOnly | Where-Object {($_.licenses).AccountSkuId -eq ''}
+$tenantName = "tenantName"
+
+$msolUsers = Get-MsolUser -EnabledFilter EnabledOnly | Where-Object {($_.licenses).AccountSkuId -eq "'$tenantName':ENTERPRISEPACK_GOV"}
 
 ForEach ($user in $msolUsers) {
   try {
