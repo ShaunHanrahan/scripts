@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 mkdir ~/test
 echo "Hello!" > ~/test/house.txt
 echo "File created and moved!"
