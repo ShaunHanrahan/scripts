@@ -8,7 +8,7 @@ def find_yaml_files(path):
     yaml_files = []
     for root, dirs, files in os.walk(path):
         for file in files:
-            if file.endswith('.yml') or file.endswith('.yaml'):
+            if file.endswith('.yaml') or file.endswith('.yaml'):
                 yaml_files.append(os.path.join(root, file))
     return yaml_files
 
