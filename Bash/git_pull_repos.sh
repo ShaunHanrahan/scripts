@@ -13,7 +13,7 @@ if [ "$#" -ne 1 ]; then
 fi
 
 USERNAME=$1
-TARGET_DIR="$HOME/code/$USERNAME"
+TARGET_DIR="$HOME/code"
 API_URL="https://api.github.com/users/$USERNAME/repos?per_page=100"
 
 # Create the directory if it doesn't exist
