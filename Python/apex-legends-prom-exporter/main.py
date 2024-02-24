@@ -378,8 +378,10 @@ class ApexCollector:
         self.player_stats_collector.populate_data()
         self.map_stats_collector.populate_data()
 
-        print(self.map_stats_collector.current_map_name)
         self.current_session_map.info({'map_name': self.map_stats_collector.current_map_name})
+        self.current_session_duration.info({'map_name': self.map_stats_collector.current_map_name})
+        self.current_session_remaining.info({'map_name': self.map_stats_collector.current_map_name})
+        self.next_session_start.info({'map_name': self.map_stats_collector.next_map_name})
 
 if __name__ == "__main__":
     logging.basicConfig(
@@ -408,10 +410,14 @@ if __name__ == "__main__":
         "api_key": os.environ.get("API_KEY"),
     }
 
+    # Pass platform as an argument ONLY to the PlayerStatsCollector
     player_stats_collector = PlayerStatsCollector(**credentials, platform=os.environ.get("PLATFORM").upper())
     map_stats_collector = MapDataCollector(**credentials)
 
     collector = ApexCollector(player_stats_collector, map_stats_collector)
+
+    # Unregister garbage collector metrics
+    REGISTRY.unregister(REGISTRY._names_to_collectors['python_gc_objects_collected_total'])
 
     start_http_server(port=8000)
 
