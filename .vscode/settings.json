@@ -1,0 +1,25 @@
+{
+    "files.associations": {
+        "PowerShell/**/*.ps1": "powershell",
+        "Python/**/*.py": "python",
+        "Bash/**/*.sh": "python",
+    },
+    "[python]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 4,
+        "editor.detectIndentation": false,
+        "editor.defaultFormatter": "ms-python.python"
+    },
+    "[powershell]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 4,
+        "editor.detectIndentation": false,
+        "editor.defaultFormatter": "ms-vscode.powershell"
+    },
+    "yaml.customTags": [
+        "!secret scalar",
+        "!env_var scalar"
+    ],
+    "editor.stickyScroll.enabled": true,
+    "workbench.tree.enableStickyScroll": true,
+}
