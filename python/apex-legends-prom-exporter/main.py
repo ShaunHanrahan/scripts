@@ -103,7 +103,6 @@ class PlayerStatsCollector:
         self.lobby_state = ''
         self.is_online = False
         self.is_in_game = False
-        self.can_join = False
         self.party_full = False
         self.selected_legend = ''
         self.current_state = ''
@@ -178,7 +177,6 @@ class PlayerStatsCollector:
         self.lobby_state = player_realtime_data["lobbyState"]
         self.is_online = bool(player_realtime_data["isOnline"])
         self.is_in_game = bool(player_realtime_data["isInGame"])
-        self.can_join = bool(player_realtime_data["canJoin"])
         self.party_full = bool(player_realtime_data["partyFull"])
         self.selected_legend = player_realtime_data["selectedLegend"]
         self.current_state = player_realtime_data["currentState"]
@@ -368,6 +366,18 @@ class ApexCollector:
             registry=registry
         )
 
+        self.active_legend = Info(
+            'player_active_legend',
+            'Name of the active legend',
+            registry=registry
+        )
+
+        self.active_legend_kills = Gauge(
+            'player_active_legend_kills',
+            'Total kills of the active legend',
+            registry=registry
+        )
+
         self.current_state = Info(
             'player_current_state',
             'Current state of the player',
@@ -422,7 +432,7 @@ class ApexCollector:
         self.current_session_duration.set(self.map_stats_collector.current_map_duration)
         self.current_session_remaining.set(self.map_stats_collector.current_map_remaining)
         self.next_session_map.info({'next_map_name': next_map_name})
-        self.next_session_duration.set(self.map_stats_collector.current_map_duration)
+        self.next_session_duration.set(self.map_stats_collector.next_map_duration)
         self.next_session_start.set(self.map_stats_collector.next_map_start)
 
         # Define Prometheus Metrics for Player Stats
@@ -445,6 +455,8 @@ class ApexCollector:
         self.is_in_game.set(int(self.player_stats_collector.is_in_game))
         self.party_full.info({'party_full': str(self.player_stats_collector.party_full)})
         self.selected_legend.info({'selected_legend': self.player_stats_collector.selected_legend})
+        self.active_legend.info({'active_legend': self.player_stats_collector.current_legend_name})
+        self.active_legend_kills.set(self.player_stats_collector.current_legend_br_kills)
         self.current_state.info({'current_state': self.player_stats_collector.current_state})
         for legend_name, kills in self.player_stats_collector.all_legends_kills.items():
             self.legend_kills.labels(legend_name).set(kills)
