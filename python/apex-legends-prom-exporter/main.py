@@ -1,12 +1,15 @@
-import requests
+"""Apex Legends Prometheus Exporter"""
+
 import logging
 import os
 import sys
 import time
+import requests
 from prometheus_client import start_http_server, Gauge, REGISTRY, CollectorRegistry, Info
-from functools import reduce
 
 class MapDataCollector:
+    """Class to collect map data"""
+
     URL = "https://api.mozambiquehe.re/maprotation"
     def __init__(self, api_key: str, uid: str = None, player_name: str = None): # function signature
         self.uid = uid
@@ -27,7 +30,9 @@ class MapDataCollector:
         logging.debug("Collecting from: %s", self.URL)
         logging.debug("API KEY: %s", self.headers["Authorization"])
 
-        map_rotation = requests.get(self.URL, headers=self.headers).json() # Convert json response to python object
+        map_rotation = requests.get(
+            self.URL, headers=self.headers, timeout=10
+        ).json()  # Convert json response to python object
 
         current_map_data = map_rotation["current"]
         next_map_data = map_rotation["next"]
@@ -42,14 +47,35 @@ class MapDataCollector:
         self.next_map_start = next_map_data["start"]
 
 class PlayerStatsCollector:
+    """Class to collect player stats"""
+
     URL = "https://api.mozambiquehe.re/bridge"
-    def __init__(self, api_key: str, uid: str = None, player_name: str = None, platform: str = None): # function signature
+    def __init__(
+        self,
+        api_key: str,
+        uid: str = None,
+        player_name: str = None,
+        platform: str = None,
+    ):  # function signature
         self.uid = uid
         self.platform = platform
         self.player_name = player_name
-        self.headers = {
-            "Authorization": api_key
-        }
+        self.headers = {"Authorization": api_key}
+
+        # TODO: Convert to dictionary and/or properties
+        """
+        class test:
+            def __init__(self):
+            self.data = {"kills": 3, "deaths": 3}
+        
+            @property
+            def kills(self):
+            return self.data["kills"]
+
+            @property
+            def deaths(self):
+                return self.data["deaths"]
+        """
 
         # Data from global stats
         self.player_identifier = ''
@@ -86,6 +112,9 @@ class PlayerStatsCollector:
         self.current_legend_name = ''
         self.current_legend_br_kills = 0
 
+        # Data from Legends Kills
+        self.all_legends_kills = {}
+
         # Data from Player Total
         self.kills = 0
         self.kill_death_ratio = ''
@@ -101,9 +130,19 @@ class PlayerStatsCollector:
         logging.debug("API KEY: %s", self.headers["Authorization"])
 
         if self.player_name:
-            player_stats = requests.get(self.URL, headers=self.headers, params={"player_name": self.player_name, "platform": self.platform}).json()
+            player_stats = requests.get(
+                self.URL,
+                headers=self.headers,
+                params={"player_name": self.player_name, "platform": self.platform},
+                timeout=10,
+            ).json()
         else:
-            player_stats = requests.get(self.URL, headers=self.headers, params={"uid": self.uid, "platform": self.platform}).json()
+            player_stats = requests.get(
+                self.URL,
+                headers=self.headers,
+                params={"uid": self.uid, "platform": self.platform},
+                timeout=10,
+            ).json()
 
         player_info_data = player_stats["global"]
         player_realtime_data = player_stats["realtime"]
@@ -156,7 +195,7 @@ class PlayerStatsCollector:
             if legend_name == 'Global':
                 continue # skip
             if 'data' not in legend_info:
-            # alternative: if not legend_info.get('data'):
+                # alternative: if not legend_info.get('data'):
                 continue
             kill_value = next((item["value"] for item in legend_info['data'] if item['key'] == 'kills'), 0)
             if kill_value != 0:
@@ -173,6 +212,7 @@ class PlayerStatsCollector:
         self.processing_time = api_data
 
 class ApexCollector:
+    """Class aggregates the data from the collectors and exposes it using Prometheus metrics."""
     def __init__(self, player_stats_collector: PlayerStatsCollector, map_stats_collector: MapDataCollector, registry: CollectorRegistry = REGISTRY):
         self.registry = registry
 
@@ -334,6 +374,13 @@ class ApexCollector:
             registry=registry
         )
 
+        self.legend_kills = Gauge(
+            'player_legend_kills', 
+            'Total kills for each legend', 
+            ['legend_name'], 
+            registry=registry
+        )
+
         self.kills = Gauge(
             'player_kills_total',
             'Total kills of the player',
@@ -391,14 +438,16 @@ class ApexCollector:
         self.arena_rank_name.info({'arena_rank_name': self.player_stats_collector.arena_rank_name})
         self.arena_rank_score.set(self.player_stats_collector.arena_rank_score)
         self.arena_rank_div.set(self.player_stats_collector.arena_rank_div)
-        # self.battle_pass_level.set(self.player_stats_collector.battle_pass_level)
-        # self.battle_pass_history.set(self.player_stats_collector.battle_pass_history)
+        self.battle_pass_level.set(self.player_stats_collector.battle_pass_level)
+        self.battle_pass_history.set(self.player_stats_collector.battle_pass_history)
         self.lobby_state.info({'lobby_state': self.player_stats_collector.lobby_state}) # TODO: convert to ENUM
         self.is_online.set(int(self.player_stats_collector.is_online))
         self.is_in_game.set(int(self.player_stats_collector.is_in_game))
         self.party_full.info({'party_full': str(self.player_stats_collector.party_full)})
         self.selected_legend.info({'selected_legend': self.player_stats_collector.selected_legend})
         self.current_state.info({'current_state': self.player_stats_collector.current_state})
+        for legend_name, kills in self.player_stats_collector.all_legends_kills.items():
+            self.legend_kills.labels(legend_name).set(kills)
         self.kills.set(self.player_stats_collector.kills)
         self.kill_death_ratio.set(float(self.player_stats_collector.kill_death_ratio))
         self.mozambique_cluster_server.info({'mozambique_cluster_server': self.player_stats_collector.mozambique_cluster_server})
@@ -439,6 +488,7 @@ if __name__ == "__main__":
 
     collector = ApexCollector(player_stats_collector, map_stats_collector)
 
+    # TODO: Remove Python platform information as well
     # Unregister garbage collector metrics
     REGISTRY.unregister(REGISTRY._names_to_collectors['python_gc_objects_collected_total'])
 
@@ -446,4 +496,4 @@ if __name__ == "__main__":
 
     while True:
         collector.collect()
-        time.sleep(15)
+        time.sleep(15) # TODO: Collect only when requesting data; modify prometheus_client to do this
