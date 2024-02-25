@@ -5,24 +5,32 @@ import os
 import sys
 import time
 import requests
-from prometheus_client import start_http_server, Gauge, REGISTRY, CollectorRegistry, Info
+from prometheus_client import (
+    start_http_server,
+    Gauge,
+    REGISTRY,
+    CollectorRegistry,
+    Info,
+)
+
 
 class MapDataCollector:
     """Class to collect map data"""
 
     URL = "https://api.mozambiquehe.re/maprotation"
-    def __init__(self, api_key: str, uid: str = None, player_name: str = None): # function signature
+
+    def __init__(
+        self, api_key: str, uid: str = None, player_name: str = None
+    ):  # function signature
         self.uid = uid
         self.player_name = player_name
-        self.headers = {
-            "Authorization": api_key
-        }
+        self.headers = {"Authorization": api_key}
 
         # Data from MapRotation
-        self.current_map_name = ''
+        self.current_map_name = ""
         self.current_map_duration = 0
         self.current_map_remaining = 0
-        self.next_map_name = ''
+        self.next_map_name = ""
         self.next_map_start = 0
         self.next_map_duration = 0
 
@@ -46,10 +54,12 @@ class MapDataCollector:
         self.current_map_remaining = current_map_data["remainingMins"]
         self.next_map_start = next_map_data["start"]
 
+
 class PlayerStatsCollector:
     """Class to collect player stats"""
 
     URL = "https://api.mozambiquehe.re/bridge"
+
     def __init__(
         self,
         api_key: str,
@@ -78,20 +88,20 @@ class PlayerStatsCollector:
         """
 
         # Data from global stats
-        self.player_identifier = ''
-        self.player_platform = ''
+        self.player_identifier = ""
+        self.player_platform = ""
         self.level = 0
         self.next_level_percentage = 0
-        self.banned = ''
+        self.banned = ""
         self.ban_duration = 0
 
         # Data from BR Ranking
-        self.br_rank_name = ''
+        self.br_rank_name = ""
         self.br_rank_score = 0
         self.br_rank_div = 0
 
         # Data from Arena Rank
-        self.arena_rank_name = ''
+        self.arena_rank_name = ""
         self.arena_rank_score = 0
         self.arena_rank_div = 0
 
@@ -100,15 +110,15 @@ class PlayerStatsCollector:
         self.battle_pass_history = 0
 
         # Data from Realtime
-        self.lobby_state = ''
+        self.lobby_state = ""
         self.is_online = False
         self.is_in_game = False
         self.party_full = False
-        self.selected_legend = ''
-        self.current_state = ''
+        self.selected_legend = ""
+        self.current_state = ""
 
         # Data from Current Legend
-        self.current_legend_name = ''
+        self.current_legend_name = ""
         self.current_legend_br_kills = 0
 
         # Data from Legends Kills
@@ -116,10 +126,10 @@ class PlayerStatsCollector:
 
         # Data from Player Total
         self.kills = 0
-        self.kill_death_ratio = ''
+        self.kill_death_ratio = ""
 
         # Data from Mozambique
-        self.mozambique_cluster_server = ''
+        self.mozambique_cluster_server = ""
 
         # Data from API
         self.processing_time = 0
@@ -190,12 +200,19 @@ class PlayerStatsCollector:
 
         # Generator Expression to extract kill value from all legends
         for legend_name, legend_info in player_legends_kills.items():
-            if legend_name == 'Global':
-                continue # skip
-            if 'data' not in legend_info:
+            if legend_name == "Global":
+                continue  # skip
+            if "data" not in legend_info:
                 # alternative: if not legend_info.get('data'):
                 continue
-            kill_value = next((item["value"] for item in legend_info['data'] if item['key'] == 'kills'), 0)
+            kill_value = next(
+                (
+                    item["value"]
+                    for item in legend_info["data"]
+                    if item["key"] == "kills"
+                ),
+                0,
+            )
             if kill_value != 0:
                 self.all_legends_kills[legend_name] = kill_value
 
@@ -209,214 +226,179 @@ class PlayerStatsCollector:
         # Data from API
         self.processing_time = api_data
 
+
 class ApexCollector:
     """Class aggregates the data from the collectors and exposes it using Prometheus metrics."""
-    def __init__(self, player_stats_collector: PlayerStatsCollector, map_stats_collector: MapDataCollector, registry: CollectorRegistry = REGISTRY):
+
+    def __init__(
+        self,
+        player_stats_collector: PlayerStatsCollector,
+        map_stats_collector: MapDataCollector,
+        registry: CollectorRegistry = REGISTRY,
+    ):
         self.registry = registry
 
         # Define Prometheus metrics for map stats
         self.current_session_map = Info(
-            'apex_current_map',
-            'Name of the current map',
-            registry=registry
+            "apex_current_map", "Name of the current map", registry=registry
         )
 
         self.current_session_duration = Gauge(
-            'apex_current_map_duration_total',
-            'Duration of the current map in minutes',
-            registry=registry
+            "apex_current_map_duration_total",
+            "Duration of the current map in minutes",
+            registry=registry,
         )
 
         self.current_session_remaining = Gauge(
-            'apex_current_map_remaining_total',
-            'Time remaining of the current map in minutes',
-            registry=registry
+            "apex_current_map_remaining_total",
+            "Time remaining of the current map in minutes",
+            registry=registry,
         )
 
         self.next_session_map = Info(
-            'apex_next_map',
-            'Name of the next map',
-            registry=registry
+            "apex_next_map", "Name of the next map", registry=registry
         )
 
         self.next_session_start = Gauge(
-            'apex_next_map_start_total',
-            'Start time of the next map in minutes',
-            registry=registry
+            "apex_next_map_start_total",
+            "Start time of the next map in minutes",
+            registry=registry,
         )
 
         self.next_session_duration = Gauge(
-            'apex_next_map_duration_minutes',
-            'Duration of the next map in minutes',
-            registry=registry
+            "apex_next_map_duration_minutes",
+            "Duration of the next map in minutes",
+            registry=registry,
         )
 
         # Define Prometheus Metrics for Player Stats
         self.player_identifier = Info(
-            'apex_player_identifier',
-            'Name of the player',
-            registry=registry
+            "apex_player_identifier", "Name of the player", registry=registry
         )
 
         self.player_platform = Info(
-            'player_platform',
-            'Platform of the player',
-            registry=registry
+            "player_platform", "Platform of the player", registry=registry
         )
 
-        self.level = Gauge(
-            'player_level',
-            'Level of the player',
-            registry=registry
-        )
+        self.level = Gauge("player_level", "Level of the player", registry=registry)
 
         self.next_level_percentage = Gauge(
-            'player_next_level_percentage',
-            'Next level percentage of the player',
-            registry=registry
+            "player_next_level_percentage",
+            "Next level percentage of the player",
+            registry=registry,
         )
 
-        self.banned = Info(
-            'player_banned',
-            'Is the player banned',
-            registry=registry
-        )
+        self.banned = Info("player_banned", "Is the player banned", registry=registry)
 
         self.ban_duration = Gauge(
-            'player_ban_duration',
-            'Ban duration of the player',
-            registry=registry
+            "player_ban_duration", "Ban duration of the player", registry=registry
         )
 
         self.br_rank_name = Info(
-            'player_br_rank_name',
-            'BR Rank Name of the player',
-            registry=registry
+            "player_br_rank_name", "BR Rank Name of the player", registry=registry
         )
 
         self.br_rank_score = Gauge(
-            'player_br_rank_score',
-            'BR Rank Score of the player',
-            registry=registry
+            "player_br_rank_score", "BR Rank Score of the player", registry=registry
         )
 
         self.br_rank_div = Gauge(
-            'player_br_rank_div',
-            'BR Rank Division of the player',
-            registry=registry
+            "player_br_rank_div", "BR Rank Division of the player", registry=registry
         )
 
         self.arena_rank_name = Info(
-            'player_arena_rank_name',
-            'Arena Rank Name of the player',
-            registry=registry
+            "player_arena_rank_name", "Arena Rank Name of the player", registry=registry
         )
 
         self.arena_rank_score = Gauge(
-            'player_arena_rank_score',
-            'Arena Rank Score of the player',
-            registry=registry
+            "player_arena_rank_score",
+            "Arena Rank Score of the player",
+            registry=registry,
         )
 
         self.arena_rank_div = Gauge(
-            'player_arena_rank_div',
-            'Arena Rank Division of the player',
-            registry=registry
+            "player_arena_rank_div",
+            "Arena Rank Division of the player",
+            registry=registry,
         )
 
         self.battle_pass_level = Gauge(
-            'player_battle_pass_level',
-            'Battle Pass Level of the player',
-            registry=registry
+            "player_battle_pass_level",
+            "Battle Pass Level of the player",
+            registry=registry,
         )
 
         self.battle_pass_history = Gauge(
-            'player_battle_pass_history',
-            'Battle Pass History of the player',
-            registry=registry
+            "player_battle_pass_history",
+            "Battle Pass History of the player",
+            registry=registry,
         )
 
         self.lobby_state = Info(
-            'player_lobby_state',
-            'Lobby state of the player',
-            registry=registry
+            "player_lobby_state", "Lobby state of the player", registry=registry
         )
 
         self.is_online = Gauge(
-            'player_is_online',
-            'Is the player online',
-            registry=registry
+            "player_is_online", "Is the player online", registry=registry
         )
 
         self.is_in_game = Gauge(
-            'player_is_in_game',
-            'Is the player in a game',
-            registry=registry
+            "player_is_in_game", "Is the player in a game", registry=registry
         )
 
         self.party_full = Info(
-            'player_party_full',
-            'Is the player in a party',
-            registry=registry
+            "player_party_full", "Is the player in a party", registry=registry
         )
 
         self.selected_legend = Info(
-            'player_selected_legend',
-            'Name of the selected legend',
-            registry=registry
+            "player_selected_legend", "Name of the selected legend", registry=registry
         )
 
         self.active_legend = Info(
-            'player_active_legend',
-            'Name of the active legend',
-            registry=registry
+            "player_active_legend", "Name of the active legend", registry=registry
         )
 
         self.active_legend_kills = Gauge(
-            'player_active_legend_kills',
-            'Total kills of the active legend',
-            registry=registry
+            "player_active_legend_kills",
+            "Total kills of the active legend",
+            registry=registry,
         )
 
         self.current_state = Info(
-            'player_current_state',
-            'Current state of the player',
-            registry=registry
+            "player_current_state", "Current state of the player", registry=registry
         )
 
         self.legend_kills = Gauge(
-            'player_legend_kills', 
-            'Total kills for each legend', 
-            ['legend_name'], 
-            registry=registry
+            "player_legend_kills",
+            "Total kills for each legend",
+            ["legend_name"],
+            registry=registry,
         )
 
         self.kills = Gauge(
-            'player_kills_total',
-            'Total kills of the player',
-            registry=registry
+            "player_kills_total", "Total kills of the player", registry=registry
         )
 
         self.kill_death_ratio = Gauge(
-            'player_kill_death_ratio',
-            'Kill/Death Ratio of the player',
-            registry=registry
+            "player_kill_death_ratio",
+            "Kill/Death Ratio of the player",
+            registry=registry,
         )
 
         self.mozambique_cluster_server = Info(
-            'player_mozambique_cluster_server',
-            'Cluster name presenting API',
-            registry=registry
-        )        
+            "player_mozambique_cluster_server",
+            "Cluster name presenting API",
+            registry=registry,
+        )
 
         self.processing_time = Gauge(
-            'player_processing_time',
-            'API Processing Time in milliseconds',
-            registry=registry
+            "player_processing_time",
+            "API Processing Time in milliseconds",
+            registry=registry,
         )
 
         self.player_stats_collector = player_stats_collector
-        
+
         self.map_stats_collector = map_stats_collector
 
     def collect(self):
@@ -428,44 +410,73 @@ class ApexCollector:
         next_map_name = self.map_stats_collector.next_map_name
 
         # Define Prometheus Metrics for Map Stats
-        self.current_session_map.info({'map_name': current_map_name})
+        self.current_session_map.info({"map_name": current_map_name})
         self.current_session_duration.set(self.map_stats_collector.current_map_duration)
-        self.current_session_remaining.set(self.map_stats_collector.current_map_remaining)
-        self.next_session_map.info({'next_map_name': next_map_name})
+        self.current_session_remaining.set(
+            self.map_stats_collector.current_map_remaining
+        )
+        self.next_session_map.info({"next_map_name": next_map_name})
         self.next_session_duration.set(self.map_stats_collector.next_map_duration)
         self.next_session_start.set(self.map_stats_collector.next_map_start)
 
         # Define Prometheus Metrics for Player Stats
-        self.player_identifier.info({'player_identifier': self.player_stats_collector.player_identifier})
-        self.player_platform.info({'platform': self.player_stats_collector.player_platform})
+        self.player_identifier.info(
+            {"player_identifier": self.player_stats_collector.player_identifier}
+        )
+        self.player_platform.info(
+            {"platform": self.player_stats_collector.player_platform}
+        )
         self.level.set(self.player_stats_collector.level)
-        self.next_level_percentage.set(self.player_stats_collector.next_level_percentage)
-        self.banned.info({'banned': str(self.player_stats_collector.banned)})
+        self.next_level_percentage.set(
+            self.player_stats_collector.next_level_percentage
+        )
+        self.banned.info({"banned": str(self.player_stats_collector.banned)})
         self.ban_duration.set(self.player_stats_collector.ban_duration)
-        self.br_rank_name.info({'br_rank_name': self.player_stats_collector.br_rank_name})
+        self.br_rank_name.info(
+            {"br_rank_name": self.player_stats_collector.br_rank_name}
+        )
         self.br_rank_score.set(self.player_stats_collector.br_rank_score)
         self.br_rank_div.set(self.player_stats_collector.br_rank_div)
-        self.arena_rank_name.info({'arena_rank_name': self.player_stats_collector.arena_rank_name})
+        self.arena_rank_name.info(
+            {"arena_rank_name": self.player_stats_collector.arena_rank_name}
+        )
         self.arena_rank_score.set(self.player_stats_collector.arena_rank_score)
         self.arena_rank_div.set(self.player_stats_collector.arena_rank_div)
         self.battle_pass_level.set(self.player_stats_collector.battle_pass_level)
         self.battle_pass_history.set(self.player_stats_collector.battle_pass_history)
-        self.lobby_state.info({'lobby_state': self.player_stats_collector.lobby_state}) # TODO: convert to ENUM
+        self.lobby_state.info(
+            {"lobby_state": self.player_stats_collector.lobby_state}
+        )  # TODO: convert to ENUM
         self.is_online.set(int(self.player_stats_collector.is_online))
         self.is_in_game.set(int(self.player_stats_collector.is_in_game))
-        self.party_full.info({'party_full': str(self.player_stats_collector.party_full)})
-        self.selected_legend.info({'selected_legend': self.player_stats_collector.selected_legend})
-        self.active_legend.info({'active_legend': self.player_stats_collector.current_legend_name})
-        self.active_legend_kills.set(self.player_stats_collector.current_legend_br_kills)
-        self.current_state.info({'current_state': self.player_stats_collector.current_state})
+        self.party_full.info(
+            {"party_full": str(self.player_stats_collector.party_full)}
+        )
+        self.selected_legend.info(
+            {"selected_legend": self.player_stats_collector.selected_legend}
+        )
+        self.active_legend.info(
+            {"active_legend": self.player_stats_collector.current_legend_name}
+        )
+        self.active_legend_kills.set(
+            self.player_stats_collector.current_legend_br_kills
+        )
+        self.current_state.info(
+            {"current_state": self.player_stats_collector.current_state}
+        )
         for legend_name, kills in self.player_stats_collector.all_legends_kills.items():
             self.legend_kills.labels(legend_name).set(kills)
         self.kills.set(self.player_stats_collector.kills)
         self.kill_death_ratio.set(float(self.player_stats_collector.kill_death_ratio))
-        self.mozambique_cluster_server.info({'mozambique_cluster_server': self.player_stats_collector.mozambique_cluster_server})
+        self.mozambique_cluster_server.info(
+            {
+                "mozambique_cluster_server": self.player_stats_collector.mozambique_cluster_server
+            }
+        )
         self.processing_time.set(self.player_stats_collector.processing_time)
 
         return
+
 
 if __name__ == "__main__":
     logging.basicConfig(
@@ -495,17 +506,23 @@ if __name__ == "__main__":
     }
 
     # Pass platform as an argument ONLY to the PlayerStatsCollector
-    player_stats_collector = PlayerStatsCollector(**credentials, platform=os.environ.get("PLATFORM").upper())
+    player_stats_collector = PlayerStatsCollector(
+        **credentials, platform=os.environ.get("PLATFORM").upper()
+    )
     map_stats_collector = MapDataCollector(**credentials)
 
     collector = ApexCollector(player_stats_collector, map_stats_collector)
 
     # TODO: Remove Python platform information as well
     # Unregister garbage collector metrics
-    REGISTRY.unregister(REGISTRY._names_to_collectors['python_gc_objects_collected_total'])
+    REGISTRY.unregister(
+        REGISTRY._names_to_collectors["python_gc_objects_collected_total"]
+    )
 
     start_http_server(port=8000)
 
     while True:
         collector.collect()
-        time.sleep(15) # TODO: Collect only when requesting data; modify prometheus_client to do this
+        time.sleep(
+            15
+        )  # TODO: Collect only when requesting data; modify prometheus_client to do this
