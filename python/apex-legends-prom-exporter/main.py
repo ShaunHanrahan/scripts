@@ -75,10 +75,10 @@ class PlayerStatsCollector:
 
         # Data from Realtime
         self.lobby_state = ''
-        self.is_online = 0
-        self.is_in_game = 0
-        self.can_join = 0
-        self.party_full = 0
+        self.is_online = False
+        self.is_in_game = False
+        self.can_join = False
+        self.party_full = False
         self.selected_legend = ''
         self.current_state = ''
 
@@ -91,7 +91,6 @@ class PlayerStatsCollector:
         self.kill_death_ratio = ''
 
         # Data from Mozambique
-        self.mozambique_new_db = ''
         self.mozambique_cluster_server = ''
 
         # Data from API
@@ -133,15 +132,15 @@ class PlayerStatsCollector:
         self.arena_rank_div = player_info_data["arena"]["rankDiv"]
 
         # Data from BattlePass
-        self.battle_pass_level = player_info_data["battlepass"]["level"]
-        self.battle_pass_history = player_info_data["battlepass"]["history"]
+        self.battle_pass_level = player_info_data["battlepass"]["level"] or 0
+        self.battle_pass_history = player_info_data["battlepass"]["history"] or 0
 
         # Data from Realtime
         self.lobby_state = player_realtime_data["lobbyState"]
-        self.is_online = player_realtime_data["isOnline"]
-        self.is_in_game = player_realtime_data["isInGame"]
-        self.can_join = player_realtime_data["canJoin"]
-        self.party_full = player_realtime_data["partyFull"]
+        self.is_online = bool(player_realtime_data["isOnline"])
+        self.is_in_game = bool(player_realtime_data["isInGame"])
+        self.can_join = bool(player_realtime_data["canJoin"])
+        self.party_full = bool(player_realtime_data["partyFull"])
         self.selected_legend = player_realtime_data["selectedLegend"]
         self.current_state = player_realtime_data["currentState"]
 
@@ -164,11 +163,10 @@ class PlayerStatsCollector:
                 self.all_legends_kills[legend_name] = kill_value
 
         # Data from Player Total
-        self.kills = player_total_data["kills"]
-        self.kill_death_ratio = player_total_data["kd"]
+        self.kills = player_total_data["kills"]["value"]
+        self.kill_death_ratio = float(player_total_data["kd"]["value"])
 
         # Data from Mozambique
-        self.mozambique_new_db = player_mozambique_data["isNewToDB"]
         self.mozambique_cluster_server = player_mozambique_data["clusterSrv"]
 
         # Data from API
@@ -188,14 +186,12 @@ class ApexCollector:
         self.current_session_duration = Gauge(
             'apex_current_map_duration_total',
             'Duration of the current map in minutes',
-            ['map_name'],
             registry=registry
         )
 
         self.current_session_remaining = Gauge(
             'apex_current_map_remaining_total',
             'Time remaining of the current map in minutes',
-            ['map_name'],
             registry=registry
         )
 
@@ -208,14 +204,12 @@ class ApexCollector:
         self.next_session_start = Gauge(
             'apex_next_map_start_total',
             'Start time of the next map in minutes',
-            ['map_name'],
             registry=registry
         )
 
         self.next_session_duration = Gauge(
             'apex_next_map_duration_minutes',
             'Duration of the next map in minutes',
-            ['map_name'],
             registry=registry
         )
 
@@ -346,15 +340,9 @@ class ApexCollector:
             registry=registry
         )
 
-        self.kill_death_ratio = Info(
+        self.kill_death_ratio = Gauge(
             'player_kill_death_ratio',
             'Kill/Death Ratio of the player',
-            registry=registry
-        )
-
-        self.mozambique_new_db = Info(
-            'player_mozambique_new_db',
-            'Is the player using the new database',
             registry=registry
         )
 
@@ -378,10 +366,45 @@ class ApexCollector:
         self.player_stats_collector.populate_data()
         self.map_stats_collector.populate_data()
 
-        self.current_session_map.info({'map_name': self.map_stats_collector.current_map_name})
-        self.current_session_duration.info({'map_name': self.map_stats_collector.current_map_name})
-        self.current_session_remaining.info({'map_name': self.map_stats_collector.current_map_name})
-        self.next_session_start.info({'map_name': self.map_stats_collector.next_map_name})
+        # Improve readability by variablizing the map name
+        current_map_name = self.map_stats_collector.current_map_name
+        next_map_name = self.map_stats_collector.next_map_name
+
+        # Define Prometheus Metrics for Map Stats
+        self.current_session_map.info({'map_name': current_map_name})
+        self.current_session_duration.set(self.map_stats_collector.current_map_duration)
+        self.current_session_remaining.set(self.map_stats_collector.current_map_remaining)
+        self.next_session_map.info({'next_map_name': next_map_name})
+        self.next_session_duration.set(self.map_stats_collector.current_map_duration)
+        self.next_session_start.set(self.map_stats_collector.next_map_start)
+
+        # Define Prometheus Metrics for Player Stats
+        self.player_identifier.info({'player_identifier': self.player_stats_collector.player_identifier})
+        self.player_platform.info({'platform': self.player_stats_collector.player_platform})
+        self.level.set(self.player_stats_collector.level)
+        self.next_level_percentage.set(self.player_stats_collector.next_level_percentage)
+        self.banned.info({'banned': str(self.player_stats_collector.banned)})
+        self.ban_duration.set(self.player_stats_collector.ban_duration)
+        self.br_rank_name.info({'br_rank_name': self.player_stats_collector.br_rank_name})
+        self.br_rank_score.set(self.player_stats_collector.br_rank_score)
+        self.br_rank_div.set(self.player_stats_collector.br_rank_div)
+        self.arena_rank_name.info({'arena_rank_name': self.player_stats_collector.arena_rank_name})
+        self.arena_rank_score.set(self.player_stats_collector.arena_rank_score)
+        self.arena_rank_div.set(self.player_stats_collector.arena_rank_div)
+        # self.battle_pass_level.set(self.player_stats_collector.battle_pass_level)
+        # self.battle_pass_history.set(self.player_stats_collector.battle_pass_history)
+        self.lobby_state.info({'lobby_state': self.player_stats_collector.lobby_state}) # TODO: convert to ENUM
+        self.is_online.set(int(self.player_stats_collector.is_online))
+        self.is_in_game.set(int(self.player_stats_collector.is_in_game))
+        self.party_full.info({'party_full': str(self.player_stats_collector.party_full)})
+        self.selected_legend.info({'selected_legend': self.player_stats_collector.selected_legend})
+        self.current_state.info({'current_state': self.player_stats_collector.current_state})
+        self.kills.set(self.player_stats_collector.kills)
+        self.kill_death_ratio.set(float(self.player_stats_collector.kill_death_ratio))
+        self.mozambique_cluster_server.info({'mozambique_cluster_server': self.player_stats_collector.mozambique_cluster_server})
+        self.processing_time.set(self.player_stats_collector.processing_time)
+
+        return
 
 if __name__ == "__main__":
     logging.basicConfig(
