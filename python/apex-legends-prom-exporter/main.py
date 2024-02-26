@@ -20,26 +20,39 @@ class MapDataCollector:
 
     def __init__(
         self, api_key: str, uid: str = None, player_name: str = None
-    ):  # function signature
+    ):
+        """
+        Initialize the MapDataCollector instance.
+
+        Args:
+        api_key (str): The API key for authorization.
+        uid (str, optional): The user ID. Defaults to None.
+        player_name (str, optional): The player's name. Defaults to None.
+        """
         self.uid = uid
         self.player_name = player_name
         self.headers = {"Authorization": api_key}
 
-        # Data from MapRotation
+        # Data from current map rotation
         self.current_map_name = ""
         self.current_map_duration = 0
         self.current_map_remaining = 0
+
+        # Data from next map rotation
         self.next_map_name = ""
         self.next_map_start = 0
         self.next_map_duration = 0
 
     def populate_data(self):
+        """
+        Collect map data from the API and populate the instance variables.
+        """
         logging.debug("Collecting from: %s", self.URL)
         logging.debug("API KEY: %s", self.headers["Authorization"])
 
         map_rotation = requests.get(
             self.URL, headers=self.headers, timeout=10
-        ).json()  # Convert json response to python object
+        ).json()
 
         current_map_data = map_rotation["current"]
         next_map_data = map_rotation["next"]
@@ -64,7 +77,15 @@ class PlayerStatsCollector:
         uid: str = None,
         player_name: str = None,
         platform: str = None,
-    ):  # function signature
+    ):
+        """Initialize the PlayerStatsCollector.
+
+        Args:
+        api_key (str): The API key for accessing the stats API.
+        uid (str, optional): The unique identifier for the player. Defaults to None.
+        player_name (str, optional): The player's name. Defaults to None.
+        platform (str, optional): The platform the player plays on. Defaults to None.
+        """
         self.uid = uid
         self.platform = platform
         self.player_name = player_name
@@ -133,6 +154,9 @@ class PlayerStatsCollector:
         self.processing_time = 0
 
     def populate_data(self):
+        """
+        Populates data from the API and assigns various player stats and information to instance variables.
+        """
         logging.debug("Collecting from: %s", self.URL)
         logging.debug("API KEY: %s", self.headers["Authorization"])
 
@@ -233,6 +257,9 @@ class ApexCollector:
         map_stats_collector: MapDataCollector,
         registry: CollectorRegistry = REGISTRY,
     ):
+        """
+        Initializes the class with the player_stats_collector, map_stats_collector, and optional registry. 
+        """
         self.registry = registry
 
         # TODO: Remove Python platform information as well
@@ -405,6 +432,10 @@ class ApexCollector:
         self.map_stats_collector = map_stats_collector
 
     def collect(self):
+        """
+        Collects and populates various player and map statistics, and
+        defines Prometheus metrics for map and player stats.
+        """
         self.player_stats_collector.populate_data()
         self.map_stats_collector.populate_data()
 
@@ -477,8 +508,6 @@ class ApexCollector:
             }
         )
         self.processing_time.set(self.player_stats_collector.processing_time)
-
-        return
 
 if __name__ == "__main__":
     logging.basicConfig(
