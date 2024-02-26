@@ -13,7 +13,6 @@ from prometheus_client import (
     Info,
 )
 
-
 class MapDataCollector:
     """Class to collect map data"""
 
@@ -53,7 +52,6 @@ class MapDataCollector:
 
         self.current_map_remaining = current_map_data["remainingMins"]
         self.next_map_start = next_map_data["start"]
-
 
 class PlayerStatsCollector:
     """Class to collect player stats"""
@@ -226,7 +224,6 @@ class PlayerStatsCollector:
         # Data from API
         self.processing_time = api_data
 
-
 class ApexCollector:
     """Class aggregates the data from the collectors and exposes it using Prometheus metrics."""
 
@@ -237,6 +234,12 @@ class ApexCollector:
         registry: CollectorRegistry = REGISTRY,
     ):
         self.registry = registry
+
+        # TODO: Remove Python platform information as well
+        # Unregister garbage collector metrics
+        REGISTRY.unregister(
+            REGISTRY._names_to_collectors["python_gc_objects_collected_total"]
+        )
 
         # Define Prometheus metrics for map stats
         self.current_session_map = Info(
@@ -477,7 +480,6 @@ class ApexCollector:
 
         return
 
-
 if __name__ == "__main__":
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(message)s",
@@ -512,12 +514,6 @@ if __name__ == "__main__":
     map_data = MapDataCollector(**credentials)
 
     collector = ApexCollector(player_data, map_data)
-
-    # TODO: Remove Python platform information as well
-    # Unregister garbage collector metrics
-    REGISTRY.unregister(
-        REGISTRY._names_to_collectors["python_gc_objects_collected_total"]
-    )
 
     start_http_server(port=8000)
 
