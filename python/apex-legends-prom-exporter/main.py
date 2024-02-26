@@ -506,12 +506,12 @@ if __name__ == "__main__":
     }
 
     # Pass platform as an argument ONLY to the PlayerStatsCollector
-    player_stats_collector = PlayerStatsCollector(
-        **credentials, platform=os.environ.get("PLATFORM").upper()
+    player_data = PlayerStatsCollector(
+        **credentials, platform=os.environ.get("PLATFORM", "").upper()
     )
-    map_stats_collector = MapDataCollector(**credentials)
+    map_data = MapDataCollector(**credentials)
 
-    collector = ApexCollector(player_stats_collector, map_stats_collector)
+    collector = ApexCollector(player_data, map_data)
 
     # TODO: Remove Python platform information as well
     # Unregister garbage collector metrics
