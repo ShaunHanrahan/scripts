@@ -1,6 +1,6 @@
 # Define token, secret and API URLs
-$tokenId = "hbPdZxer4i4SCv4A0Lc5i4O2hpDqPHbK"
-$tokenSecret = "empJxrldP72fk8wtnBr77uBYfFwPNMJX"
+$tokenId = ""
+$tokenSecret = ""
 $listPagesUrl = "https://docs.domain.com/api/pages"
 $exportMarkdownUrlTemplate = "https://docs.domain.com/api/pages/{0}/export/markdown"
 
